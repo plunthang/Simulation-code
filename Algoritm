@@ -1,0 +1,257 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Apr  1 23:23:00 2024
+
+@author: plunt
+"""
+
+from scipy.integrate import solve_ivp
+import numpy as np
+import matplotlib.pyplot as plt
+from math import sin, cos, pi
+
+#  constants and functions)
+μ = 379312077e8            # m^3/s^2 # G= 6.67408e-11m^3/kg*s^ # M = 5.68e26 # μ=GM
+R = 60268e3                # metre
+g_10 = 21141e-9
+Ω = 1.7e-4                 # rad/s = 9.74e-7
+μ_0 = 4*pi*1e-7
+j_2 = 1.629071e-2
+
+# charge by mass ratio
+ρ = 1e3                    # 1gm/cm^3 Headmen 2021= 10^3 kg/m^3
+b = 0.1e-9                   # = 1e-3 micro
+V = 10                     # Volt
+ε = 8.85e-12               # Farad/metre
+# Dust grains with masses from ~ 8000 to > 40,000  Mitchell 2018
+m = (4/3)*pi*(b**3)*ρ
+q = 4*pi*ε*b*V             # C
+β = q/m
+L = β*((g_10*R**3*Ω)/μ)
+
+n_i = 1e3                 # 100/cm^3 Headmen, e14 /m3      kollman 2018
+m_i = (4/3)*pi*b**3*n_i 
+
+# Fixed initial conditions
+r0 = 1.12*R  # Update this as needed
+y_kep = (μ/r0)**0.5
+Co_y_kep = y_kep/r0
+aS = (μ/(r0**3))**0.5
+b_values_1 = np.array([0.010e-9,0.029e-9])
+#b_values_1 = np.array([0.010e-9,0.015e-9,0.020e-9,0.025e-9,0.029e-9])       # STABLE
+b_values_2 = np.array([0.03e-9,0.04e-9,0.05e-9,0.06e-9,0.07e-9,0.08e-9])             # AWAY
+b_values_3 = np.array([0.09e-9,0.50e-9,1e-9,1e-8,1e-7,1e-6]) # HIT
+
+# To include both the starting and ending numbers( np.linspace)
+#b_values = np.concatenate((b_values_1,b_values_2,b_values_3))
+    
+def event_func_r(t, p):
+  return p[0] - R
+
+event_func_r.terminal = True
+event_func_r.direction = -1  # for r Decreasing
+
+def event_func_outer(t, p):
+  return p[0] - 7156e4
+
+event_func_outer.terminal = True
+event_func_outer.direction = +1  # For r increasing
+
+from matplotlib import cm
+# List of colors for different b values
+#nipy_spectral_cmap = cm.hsv
+#colors = [nipy_spectral_cmap(i) for i in np.linspace(0, 1, len(b_values))]
+
+# Define colormaps for different groups
+a_cmap = plt.colormaps.get_cmap('Reds')
+b_cmap = plt.colormaps.get_cmap('winter')
+c_cmap = plt.colormaps.get_cmap('Wistia')
+#blue_cmap = cm.get_cmap('PuBu')
+
+# Assign colors for different b values
+colors_1 = [a_cmap(i) for i in np.linspace(0, 1, len(b_values_1))]
+colors_2 = [b_cmap(i) for i in np.linspace(0, 1, len(b_values_2))]
+colors_3 = [c_cmap(i) for i in np.linspace(0, 1, len(b_values_3))]
+
+#colors = colors_1 + colors_2 + colors_3
+colors = colors_1
+
+# Plot polar plots
+fig_polar, axs_polar = plt.subplots(subplot_kw={'projection':'polar'},figsize=(8,7),dpi=250)
+axs_polar.set_rlabel_position(30)
+#axs_polar.set_title("Trajectories of (0.01 - 9)n Corotational +ve Charged Dusts")
+
+fig_paths, ax_paths = plt.subplots(dpi=200)
+# Set background color to black
+#ax_paths.set_facecolor('black')
+#plt.subplots_adjust(top=0.5, bottom=0.1)  # Set a larger bottom margin (e.g., 0.1)
+
+# Initialize lists to store handles and labels for the lines of interest
+legend_handles = []
+legend_labels = []
+
+# Iterate over different values of b
+for i, b_value in enumerate(b_values_1):
+    # Update parameters based on the current value of b
+    m = (4/3) * pi * (b_value**3) * ρ
+    q = 4 * pi * ε * b_value * V
+    β = q / m
+
+    # Update the equations with the current values of m, q, and β
+    def odes(t, p):
+        # Extracting variables from the array
+        r, x, θ, y, ϕ, z = p
+
+        B_θ = μ_0*(R/r)**3*g_10*sin(θ)
+        B_r = μ_0*(R/r)**3*g_10*cos(θ)
+
+    # Initial conditions for the plasma ions
+        r_i = 1.12*R
+        x_i = 0.0
+        θ_i = 90*(pi/180)
+        y_i = 0.0
+        ϕ_i = 0
+        z_i = Co_y_kep
+    
+    # initial conditions of the charged particle
+        r0 = 1.12*R
+        x0 = 0.0
+        θ0 = 90.0*(pi/180)
+        y0 = 0.0
+        ϕ0 = 0
+        z0 = aS #r0= 7.15488819e+07#x0=1.16537431e+04 #θ0 =1.57079633e+00 #y0 = 0.0-2.90154116e-17 #ϕ0 = 2.23133813e-01
+        #z0 = 2.93913333e-04
+    
+        w_square = (x_i-x0)**2 + (r_i*y_i-r0*y0)**2 + (r_i*z_i*sin(θ_i) - r0*z0*sin(θ0))**2 
+
+    # defining the ODEs
+        drdt = x
+        dxdt = r * ((y**2 + ((z + Ω)**2) * (sin(θ)**2)) - β*z*sin(θ)*B_θ) - pi*b**2*n_i*m_i*w_square*x
+    
+        dθdt = y
+        dydt = (-2*x*y + r*((z + Ω)**2) * sin(θ)*cos(θ) + (β*r*z*sin(θ)*B_r))/r - pi*b**2*n_i*m_i*w_square*r*x
+                    
+        dϕdt = z
+        dzdt = (-2*(z + Ω)*(x*sin(θ) + r*y*cos(θ)) + β*(x*B_θ - r*y*B_r))/(r*sin(θ)) - pi*b**2*n_i*m_i*w_square*r*z*sin(θ)
+    
+        return np.array([drdt,dxdt,dθdt,dydt,dϕdt,dzdt])
+
+        # time window
+    t_span = (0, 864)
+    #t = np.linspace(t_span[0],t_span[1],3600)
+
+    dt_desired = 1  # Desired time step in seconds
+    num_points = int((t_span[1] - t_span[0]) / dt_desired) + 1
+    t = np.linspace(t_span[0], t_span[1], num_points)
+    
+    # initial conditions
+    p0 = np.array([r0, 0.0, 90.0*(pi/180), 0.0 *(pi/180), 0.0*(pi /180),aS])
+
+    # Solve IVP
+    sol = solve_ivp(odes, t_span, p0, t_eval=t, events=[event_func_r,event_func_outer], method="RK23",
+                    dense_output=True) #DOP853 unstable.
+    
+    # Extract final values and end time
+    final_values = sol.y[:, -1]
+    end_time = sol.t[-1]
+
+  # Print or use final values for the next part of integration
+    print(f"For b = {b_value}:")
+    print("Final Values:", final_values)
+    print("End Time:", end_time)
+
+    # Check if any events occurred
+    if sol.status == 0 and len(sol.t_events[0]) > 0:
+        for i, event_time in enumerate(sol.t_events[0]):
+            event_idx = np.where(t >= event_time)[0][0]
+            t_event = sol.t_events[0][i]
+            r_event = sol.y_events[0][i, 0]
+            print(f"Event {i + 1} occurred at time {t_event:.2f} seconds. Radial distance: {r_event:.2f}")
+        else:
+            event_idx = len(t) - 1  # Plot until the end if no event occurred
+            print("Integration completed without reaching the specified event condition.")
+    
+    print("Integration Status:", sol.message)
+    print("Number of Events Detected:", len(sol.t_events[0]))
+
+    # Choose color for the current b value
+    color = colors[i]
+
+    # Polar Plot
+    # Extracting variables from the array
+    r = sol.y[0, :]
+    phi = sol.y[4, :]
+    phi_degree = sol.y[4, :]*(180/pi)
+
+    axs_polar.plot( phi, r, linewidth='0.2', linestyle='solid',alpha=1, color=color, label=f'{b_value}')
+
+    # Plot trajectories without the center circle
+    line=ax_paths.plot(r,phi_degree, linewidth='0.4', linestyle='solid',alpha=0.7, color=color,label=f'{b_value}')
+  
+    
+    # List of b_values to include in legends and annotations
+    b_values_to_annotate = [0.010e-9,0.029e-9]
+
+    # Define annotation positions: beginning (0), quarter (len(sol.t)//4), half (len(sol.t)//2), and end (-1)
+    annotation_positions = {
+    0.01e-9: min(len(sol.t) - 1, len(sol.t)//1),
+    #0.015e-9: min(len(sol.t) - 1, len(sol.t)//1),
+    #0.02e-9: min(len(sol.t) - 1, len(sol.t)//1),
+    #0.025e-9: min(len(sol.t) - 1, len(sol.t)//1),
+    0.029e-9: min(len(sol.t) - 1, len(sol.t)//1)}
+    #1e-6: min(len(sol.t) - 1, len(sol.t)//1)}
+    
+# Add text annotation for selected b_values
+    if b_value in b_values_to_annotate:
+        pos_index = annotation_positions[b_value]
+    
+        ax_paths.text(r[pos_index] + 1e5,phi_degree[pos_index], f'{b_value}', fontsize=10, color=color,ha='right', va='baseline')
+       
+        # Adjust the position to the left by reducing the angle slightly
+        #angle_offset = -0.02  # Negative value to move to the left
+        #radius_offset = 0  # Adjust if you want to move it radially
+                #axs_polar.text(phi[pos_index] + angle_offset, r[pos_index] + radius_offset,f'{b_value}', fontsize=5, color=color, ha='right',va='baseline')
+    
+        # Add the line handle to the legend handles list
+        legend_handles.append(line[0])
+    
+        # Add the label to the legend labels list
+        legend_labels.append(f'b={b_value}')
+
+    
+#Configure the polar plots
+r_ticks_values = [676e5, 7156e4, 7327e4, 7449e4]
+axs_polar.set_rticks(r_ticks_values)
+axs_polar.set_yticklabels([])
+#axs_polar.set_facecolor('black')
+axs_polar.tick_params(axis='x',labelsize=10)  # Change color of radial tick labels
+
+axs_polar.grid(color='grey', linestyle='--', linewidth=0.3)  # Change color, style, and width of radial gridlines
+
+# Add a filled circle at the center with artistic color
+axs_polar.add_patch(plt.Circle((0, 0), R, transform=axs_polar.transData._b, facecolor='#EE9A49',
+                               fill=True, linewidth=1, zorder=2, alpha=1))
+
+axs_polar.legend(loc='upper left', bbox_to_anchor=(0.1, 0.8), borderaxespad=0.,title="Legend",fontsize=6,title_fontsize=6,ncol=2)
+# Place the legend inside the circle
+#legend = axs_polar.legend(loc='upper right', bbox_to_anchor=(1.1, 1.1))
+
+# Trajectories without the center circle
+#ax_paths.set_title("Trajectories without Center Circle corotational", pad=20)
+ax_paths.set_ylabel("Azimuthal Angle (deg)", fontsize=13)
+ax_paths.set_xlabel("Radial Distance (1e7m)",fontsize=13)
+
+# LEGENDS
+#ax_paths.legend(loc='upper right', bbox_to_anchor=(1, 1), borderaxespad=0.,title="Legend",fontsize= 15,title_fontsize=14,ncol=1)
+
+# Adjusting radial ticks
+#r1_ticks_values = [60628e3, 6.2e7, 6.4e7, 6.6e7, 6.8e7, 7.0e7, 7.2e7]
+#ax_paths.set_yticks(r1_ticks_values)
+ax_paths.tick_params(axis='y', labelsize=13)  # Adjusting font size of y-axis labels
+
+# Adjusting azimuthal angle ticks
+#phi_degree_ticks_values = [ 0,  10,  20, 30, 40, 50,60,70,80,90]
+#ax_paths.set_xticks(phi_degree_ticks_values)
+ax_paths.tick_params(axis='x', labelsize=13)  # Adjusting font size of x-axis labels
+#plt.tight_layout()
+plt.show()
