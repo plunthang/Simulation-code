@@ -1,0 +1,286 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Apr 12 12:27:50 2024
+
+@author: plunt
+"""
+from scipy.integrate import solve_ivp
+import numpy as np
+import matplotlib.pyplot as plt
+from math import sin, cos, pi
+
+#  constants and functions)
+μ = 379312077e8            # m^3/s^2 # G= 6.67408e-11m^3/kg*s^ # M = 5.68e26 # μ=GM
+R = 60268e3                # metre
+g_10 = 21141e-9
+Ω = 1.7e-4                 # rad/s = 9.74e-7
+μ_0 = 4*pi*1e-7
+j_2 = 1.629071e-2
+
+# charge by mass ratio
+ρ = 1e3                    # 1gm/cm^3 Headmen 2021= 10^3 kg/m^3
+b = 0.1e-9                 # = 1e-3 micro
+V = 10                     # Volt
+ε = 8.85e-12               # Farad/metre
+# Dust grains with masses from ~ 8000 to > 40,000  Mitchell 2018
+m = (4/3)*pi*(b**3)*ρ
+q = 4*pi*ε*b*V             # C
+β = q/m
+L = β*((g_10*R**3*Ω)/μ)
+
+n_i = 1e3                 # 100/cm^3 Headmen, e14 /m3      kollman 2018
+m_i = (4/3)*pi*b**3*n_i 
+
+# Fixed initial conditions
+r0 = 1.12*R  # Update this as needed
+y_kep = (μ/r0)**0.5
+Co_y_kep = y_kep/r0
+aS = (μ/(r0**3))**0.5
+
+b_values_1 = np.array([0.010e-9,0.015e-9,0.020e-9,0.025e-9,0.029e-9])       # STABLE
+b_values_2 = np.array([0.03e-9,0.04e-9,0.05e-9,0.06e-9,0.07e-9,0.08e-9])             # AWAY
+b_values_3 = np.array([0.09e-9,0.50e-9,1e-9,1e-8,1e-7,1e-6]) # HIT
+
+
+#b_values_21 = np.array([0.029e-9,0.03e-9,0.04e-9,0.05e-9,0.06e-9,0.07e-9,0.08e-9,0.09e-9,0.10e-9]) 
+
+# To include both the starting and ending numbers( np.linspace)
+b_values = np.concatenate((b_values_1,b_values_2,b_values_3))
+    
+def event_func_r(t, p):
+  return p[0] - R
+
+event_func_r.terminal = True
+event_func_r.direction = -1  # for r Decreasing
+
+def event_func_outer(t, p):
+  return p[0] - 7156e4
+
+event_func_outer.terminal = True
+event_func_outer.direction = +1  # For r increasing
+
+from matplotlib import cm
+# List of colors for different b values
+#nipy_spectral_cmap = cm.nipy_spectral
+#colors = [nipy_spectral_cmap(i) for i in np.linspace(0, 1, len(b_values_2))]
+
+# Define colormaps for different groups
+Reds_cmap = plt.colormaps.get_cmap('Reds')
+winter_cmap = plt.colormaps.get_cmap('winter')
+Wistia_cmap = plt.colormaps.get_cmap('Wistia')
+#blue_cmap = cm.get_cmap('PuBu')
+
+# Assign colors for different b values
+colors_1 = [Reds_cmap(i) for i in np.linspace(0, 1, len(b_values_1))]
+colors_2 = [winter_cmap(i) for i in np.linspace(0, 1, len(b_values_2))]
+colors_3 = [Wistia_cmap(i) for i in np.linspace(0, 1, len(b_values_3))]
+
+colors = colors_1 + colors_2 + colors_3
+#colors = colors_3
+# Plot 3D trajectories for different b_values
+fig_3d = plt.figure(figsize=(10,9))
+ax_3d = fig_3d.add_subplot(111, projection="3d")  # Added this line
+
+ax_3d.set_xlabel('X-Axis    (1e7)', fontsize=18, labelpad=25)
+ax_3d.set_ylabel('Y-Axis    (1e7)', fontsize=18, labelpad=25)
+ax_3d.set_zlabel('Z-Axis    (1e-9)', fontsize=18, labelpad=25)
+#ax_3d.set_title("3D Trajectories (0.11 - 1)n Corotational +ve charged dusts")
+
+# Customize tick colors, font size, and tick font size
+ax_3d.tick_params(axis='x', labelsize=20, pad =10)
+ax_3d.tick_params(axis='y', labelsize=20, pad =10)
+ax_3d.tick_params(axis='z', labelsize=20, pad =10)
+
+# Customize grid line colors and size
+ax_3d.grid(True, color='white', linestyle='-', linewidth=0.3)
+
+# Plot 3D trajectories for different b_values around the same sphere
+fig_3d_sphere_center = plt.figure(figsize=(10,9))
+ax_3d_sphere_center = fig_3d_sphere_center.add_subplot(111, projection="3d")
+
+ax_3d_sphere_center.set_xlabel('X-Axis    (1e7)', fontsize=27, labelpad=32)
+ax_3d_sphere_center.set_ylabel('Y-Axis    (1e7)', fontsize=27, labelpad=32)
+ax_3d_sphere_center.set_zlabel('Z-Axis    (1e7)', fontsize=27, labelpad=25)
+
+#ax_3d_sphere_center.set_title("3D Trajectories for (0.11 - 1)n Corotational +ve charged dusts")
+ax_3d_sphere_center.grid(True, color='white',linestyle='-', linewidth=0.1)
+
+# Customize tick colors, font size, and tick font size
+ax_3d_sphere_center.tick_params(axis='x',which='major', labelsize=27, pad =10)
+ax_3d_sphere_center.tick_params(axis='y',which='major', labelsize=27, pad =10)
+ax_3d_sphere_center.tick_params(axis='z',which='major', labelsize=27, pad =8)
+
+# Plot the sphere at the center
+phi_sphere = np.linspace(0, 2*np.pi,100)
+theta_sphere = np.linspace(0, np.pi,100)
+
+xm_sphere = R * np.outer(np.cos(phi_sphere), np.sin(theta_sphere))
+ym_sphere = R * np.outer(np.sin(phi_sphere), np.sin(theta_sphere))
+zm_sphere = R * np.outer(np.ones(np.size(phi_sphere)), np.cos(theta_sphere))
+
+ax_3d_sphere_center.plot_surface(xm_sphere, ym_sphere, zm_sphere, rstride=1, cstride=1, 
+                                 cmap=plt.get_cmap('copper'),linewidth=1, antialiased=False, alpha=1)
+
+# Iterate over different values of b
+for i, b_value in enumerate(b_values):
+    # Update parameters based on the current value of b
+    m = (4/3) * pi * (b_value**3) * ρ
+    q = 4 * pi * ε * b_value * V
+    β = q / m
+
+    # Update the equations with the current values of m, q, and β
+    def odes(t, p):
+        # Extracting variables from the array
+        r, x, θ, y, ϕ, z = p
+
+        B_θ = μ_0*(R/r)**3*g_10*sin(θ)
+        B_r = μ_0*(R/r)**3*g_10*cos(θ)
+
+    # Initial conditions for the plasma ions
+        r_i = 1.01*R
+        x_i = 0.0
+        θ_i = 90*(pi/180)
+        y_i = 0.0
+        ϕ_i = 0
+        z_i = Co_y_kep
+    
+    # initial conditions of the charged particle
+        r0 = 1.12*R
+        x0 = 0.0
+        θ0 = 90.0*(pi/180)
+        y0 = 0.0
+        ϕ0 = 0
+        z0 = aS
+        #r0= 7.15488819e+07
+        #x0=1.16537431e+04 z 
+        #θ0 =1.57079633e+00
+        #y0 = 0.0-2.90154116e-17
+        #ϕ0 = 2.23133813e-01
+        #z0 = 2.93913333e-04
+    
+        w_square = (x_i-x0)**2 + (r_i*y_i-r0*y0)**2 + (r_i*z_i*sin(θ_i) - r0*z0*sin(θ0))**2 
+
+    # defining the ODEs
+        drdt = x
+        dxdt = r * ((y**2 + ((z + Ω)**2) * (sin(θ)**2)) - β*z*sin(θ)*B_θ) - pi*b**2*n_i*m_i*w_square*x
+    
+        dθdt = y
+        dydt = (-2*x*y + r*((z + Ω)**2) * sin(θ)*cos(θ) + (β*r*z*sin(θ)*B_r))/r - pi*b**2*n_i*m_i*w_square*r*x
+                    
+        dϕdt = z
+        dzdt = (-2*(z + Ω)*(x*sin(θ) + r*y*cos(θ)) + β*(x*B_θ - r*y*B_r))/(r*sin(θ)) - pi*b**2*n_i*m_i*w_square*r*z*sin(θ)
+    
+        return np.array([drdt,dxdt,dθdt,dydt,dϕdt,dzdt])
+
+
+        # time window
+    t_span = (0,3600)
+    #t = np.linspace(t_span[0],t_span[1],3600)
+
+    dt_desired = 1  # Desired time step in seconds
+    num_points = int((t_span[1] - t_span[0]) / dt_desired) + 1
+    t = np.linspace(t_span[0], t_span[1], num_points)
+    
+    # initial conditions
+    p0 = np.array([r0, 0.0, 90.0*(pi/180), 0.0 *(pi/180), 0.0*(pi/180),1.7e-4])
+
+    # Solve IVP
+    sol = solve_ivp(odes, t_span, p0, t_eval=t, events=[event_func_r,event_func_outer], method="RK23",
+                    dense_output=True) #DOP853 unstable.
+    
+    # Extract final values and end time
+    final_values = sol.y[:, -1]
+    end_time = sol.t[-1]
+
+  # Print or use final values for the next part of integration
+    print(f"For b = {b_value}:")
+    print("Final Values:", final_values)
+    print("End Time:", end_time)
+
+    # Check if any events occurred
+    if sol.status == 0 and len(sol.t_events[0]) > 0:
+        for i, event_time in enumerate(sol.t_events[0]):
+            event_idx = np.where(t >= event_time)[0][0]
+            t_event = sol.t_events[0][i]
+            r_event = sol.y_events[0][i, 0]
+            print(f"Event {i + 1} occurred at time {t_event:.2f} seconds. Radial distance: {r_event:.2f}")
+        else:
+            event_idx = len(t) - 1  # Plot until the end if no event occurred
+            print("Integration completed without reaching the specified event condition.")
+    
+    print("Integration Status:", sol.message)
+    print("Number of Events Detected:", len(sol.t_events[0]))
+
+    # Choose color for the current b value
+    color = colors[i]
+
+    # 3D Trajectories around the sphere
+    x_traj = sol.y[0, :]*np.sin(sol.y[2, :])*np.cos(sol.y[4, :])
+    y_traj = sol.y[0, :]*np.sin(sol.y[2, :])*np.sin(sol.y[4, :])
+    z_traj = sol.y[0, :]*np.cos(sol.y[2, :])
+    
+    # 3D Trajectories
+    ax_3d.plot3D(x_traj, y_traj, z_traj, label=f'b={b_value}', linewidth='1.2',linestyle='solid',color=color, alpha=1,zorder=10)
+       
+    # Adjust the z-axis scaling (expand vertically)
+    #z_scale = 1.0  # Adjust this value to control the vertical scaling
+    #ax_3d.auto_scale_xyz([x_traj.min(), x_traj.max()], [y_traj.min(), y_traj.max()],[z_traj.min()*z_scale, z_traj.max()*z_scale])
+    # Manually set tick positions and labels for the z-axis
+    #z_ticks = [ -1.0e-6, 0.0e-6,1.0e-6]  # Example tick positions
+    #z_ticklabels = ['1e-2', '2e-2', '0', '1e-2', '2e-2']  # Example tick labels
+
+    #ax_3d.set_zticks(z_ticks)
+    #ax_3d.set_zticklabels(z_ticklabels)
+    
+    x_traj1 = sol.y[0, :] * np.sin(sol.y[2, :]) * np.cos(sol.y[4, :])
+    y_traj1 = sol.y[0, :] * np.sin(sol.y[2, :]) * np.sin(sol.y[4, :])
+    z_traj1 = sol.y[0, :] * np.cos(sol.y[2, :])
+    
+    # Update the plot3D calls in both figures
+    ax_3d_sphere_center.plot3D(x_traj1, y_traj1, z_traj1, label=f'b={b_value}', linewidth='1.3',linestyle='solid', color=color, alpha=1,zorder=10)
+    
+    # List of b_values to include in legends and annotations
+    # List of b_values to include in legends and annotations
+    b_values_to_annotate = [0.010e-9, 0.04e-9,0.05e-9,0.08e-9,0.09e-9,1e-6]
+
+    # Define annotation positions: beginning (0), quarter (len(sol.t)//4), half (len(sol.t)//2), and end (-1)
+    annotation_positions = {
+    0.01e-9: min(len(sol.t) - 1, len(sol.t)//1),
+    0.04e-9: min(len(sol.t) - 1, len(sol.t)//1),
+    0.05e-9: min(len(sol.t) - 1, len(sol.t)//1),
+    0.08e-9: min(len(sol.t) - 1, len(sol.t)//1),
+    0.09e-9: min(len(sol.t) - 1, len(sol.t)//1),
+    1e-6: min(len(sol.t) - 1, len(sol.t)//1)}
+    
+    # Add text annotation for selected b_values
+    #if b_value in b_values_to_annotate:
+        #pos_index = annotation_positions[b_value]
+       #ax_3d_sphere_center.text(x_traj1[-1], y_traj1[-1], z_traj1[-1], f'b={b_value}', fontsize=12, color=color,ha='left', va='baseline', rotation='vertical')
+        
+        #ax_3d_sphere_center.text(x_traj1[pos_index], y_traj1[pos_index], z_traj1[pos_index], f'{b_value}', fontsize=12, color=color, ha='right', va='top',rotation="vertical", zorder=10)
+        
+    ax_3d_sphere_center.legend(loc='upper left', bbox_to_anchor=(0.2, 0.8), borderaxespad=0.,title="Legend",fontsize=12,title_fontsize=12,ncol=3)
+        
+# Define base filenames
+#base_filename_polar = "Figure_1c"
+#base_filename_path = "Figure_1d"
+
+# Save the polar plot in all three formats
+#plt.figure(1)  # Switch to figure 1 (assuming polar plot)
+#plt.savefig(f"{base_filename_polar}.png",dpi=1200)
+#plt.savefig(f"{base_filename_polar}.pdf",dpi=1200)
+#plt.savefig(f"{base_filename_polar}.svg",dpi=1200)
+
+# Save the trajectory plot (ax_paths) in all three formats
+#plt.figure(2)  # Switch to figure 2 (assuming ax_paths)
+#plt.savefig(f"{base_filename_path}.png",dpi=1200)
+#plt.savefig(f"{base_filename_path}.pdf",dpi=1200)
+#plt.savefig(f"{base_filename_path}.svg",dpi=1200)
+
+# Adjust the position of the plots
+#plt.subplots_adjust(bottom=0.4)  
+# Show the plots
+plt.tight_layout()
+plt.show()
+#plt.savefig('Figure 1a.png', dpi=1200)  # Save the plot as a PNG file with 1200 DPI    # Extracting variables from the array
+
