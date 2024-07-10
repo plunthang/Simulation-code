@@ -1,0 +1,283 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Jun  3 01:17:42 2024
+
+@author: plunt
+"""
+
+from scipy.integrate import solve_ivp
+import numpy as np
+import matplotlib.pyplot as plt
+from math import sin, cos, pi
+
+#  constants and functions)
+μ = 379312077e8            # m^3/s^2 # G= 6.67408e-11m^3/kg*s^ # M = 5.68e26 # μ=GM
+R = 60268e3                # metre
+g_10 = 21141e-9
+Ω = 1.7e-4                 # rad/s = 9.74e-7
+μ_0 = 4*pi*1e-7
+j_2 = 1.629071e-2
+
+# charge by mass ratio
+ρ = 1e3                    # 1gm/cm^3 Headmen 2021= 10^3 kg/m^3
+b = 0.1e-9                 # = 1e-3 micro
+V = 10                     # Volt
+ε = 8.85e-12               # Farad/metre
+# Dust grains with masses from ~ 8000 to > 40,000  Mitchell 2018
+m = (4/3)*pi*(b**3)*ρ
+q = 4*pi*ε*b*V             # C
+β = q/m
+L = β*((g_10*R**3*Ω)/μ)
+
+n_i = 1e3                 # 100/cm^3 Headmen, e14 /m3      kollman 2018
+m_i = (4/3)*pi*b**3*n_i 
+
+# Fixed initial conditions
+r0 = 1.12*R  # Update this as needed
+y_kep = (μ/r0)**0.5
+Co_y_kep = y_kep/r0
+aS = (μ/(r0**3))**0.5
+
+#b_values_1 = np.array([0.010e-9,0.013e-9,0.016e-9,0.019e-9,0.021e-9,0.024e-9,0.027e-9,0.029e-9]) #STABLE
+#b_values_2 = np.array([0.03e-9,0.04e-9,0.05e-9,0.06e-9,0.07e-9,0.08e-9]) #AWAY
+#b_values_3 = np.array([0.09e-9,0.10e-9,0.20e-9,0.50e-9,0.80e-9,1e-9,1e-8,1e-7,1e-6]) #HIT
+
+b_values_1 = np.array([0.010e-9,0.015e-9,0.020e-9,0.025e-9,0.029e-9])       # STABLE
+b_values_2 = np.array([0.03e-9,0.04e-9,0.05e-9,0.06e-9,0.07e-9,0.08e-9])             # AWAY
+b_values_3 = np.array([0.09e-9,0.50e-9,1e-9,1e-8,1e-7,1e-6]) # HIT
+
+
+#b_values_21 = np.array([0.029e-9,0.03e-9,0.04e-9,0.05e-9,0.06e-9,0.07e-9,0.08e-9,0.09e-9,0.10e-9]) 
+
+# To include both the starting and ending numbers( np.linspace)
+#b_values = np.concatenate((b_values_1,b_values_2,b_values_3))
+    
+def event_func_r(t, p):
+  return p[0] - R
+
+event_func_r.terminal = True
+event_func_r.direction = -1  # for r Decreasing
+
+def event_func_outer(t, p):
+  return p[0] - 7156e4
+
+event_func_outer.terminal = True
+event_func_outer.direction = +1  # For r increasing
+
+
+from matplotlib import cm
+# List of colors for different b values
+#nipy_spectral_cmap = cm.nipy_spectral
+#colors = [nipy_spectral_cmap(i) for i in np.linspace(0, 1, len(b_values))]
+
+# Define colormaps for different groups
+a_cmap = plt.colormaps.get_cmap('Reds')
+b_cmap = plt.colormaps.get_cmap('winter')
+c_cmap = plt.colormaps.get_cmap('Wistia')
+#blue_cmap = cm.get_cmap('PuBu')
+
+# Assign colors for different b values
+colors_1 = [a_cmap(i) for i in np.linspace(0, 1, len(b_values_1))]
+colors_2 = [b_cmap(i) for i in np.linspace(0, 1, len(b_values_2))]
+colors_3 = [c_cmap(i) for i in np.linspace(0, 1, len(b_values_3))]
+
+#colors = colors_1 + colors_2 + colors_3
+colors = colors_1
+# Plot 1-dimensional plots (time vs r, theta, etc.)
+# Create separate plots for each variable
+fig_r, ax_r = plt.subplots(dpi=200)
+fig_x, ax_x = plt.subplots(dpi=200)
+fig_theta, ax_theta = plt.subplots(dpi=200)
+fig_y, ax_y = plt.subplots(dpi=200)
+fig_phi, ax_phi = plt.subplots(dpi=200)
+fig_z, ax_z = plt.subplots(dpi=200)
+
+# Iterate over different values of b
+for i, b_value in enumerate(b_values_1):
+    # Update parameters based on the current value of b
+    m = (4/3) * pi * (b_value**3) * ρ
+    q = 4 * pi * ε * b_value * V
+    β = q / m
+
+    # Update the equations with the current values of m, q, and β
+    def odes(t, p):
+        # Extracting variables from the array
+        r, x, θ, y, ϕ, z = p
+
+        B_θ = μ_0*(R/r)**3*g_10*sin(θ)
+        B_r = μ_0*(R/r)**3*g_10*cos(θ)
+
+    # Initial conditions for the plasma ions
+        r_i = 1.12*R
+        x_i = 0.0
+        θ_i = 90*(pi/180)
+        y_i = 0.0
+        ϕ_i = 0
+        z_i = Co_y_kep
+    
+    # initial conditions of the charged particle
+        r0 = 1.12*R
+        x0 = 0.0
+        θ0 = 90.0*(pi/180)
+        y0 = 0.0
+        ϕ0 = 0
+        z0 = aS
+ 
+        w_square = (x_i-x0)**2 + (r_i*y_i-r0*y0)**2 + (r_i*z_i*sin(θ_i) - r0*z0*sin(θ0))**2 
+
+    # defining the ODEs
+        drdt = x
+        dxdt = r * ((y**2 + ((z + Ω)**2) * (sin(θ)**2)) - β*z*sin(θ)*B_θ) - pi*b**2*n_i*m_i*w_square*x
+    
+        dθdt = y
+        dydt = (-2*x*y + r*((z + Ω)**2) * sin(θ)*cos(θ) + (β*r*z*sin(θ)*B_r))/r - pi*b**2*n_i*m_i*w_square*r*x
+                    
+        dϕdt = z
+        dzdt = (-2*(z + Ω)*(x*sin(θ) + r*y*cos(θ)) + β*(x*B_θ - r*y*B_r))/(r*sin(θ)) - pi*b**2*n_i*m_i*w_square*r*z*sin(θ)
+    
+        return np.array([drdt,dxdt,dθdt,dydt,dϕdt,dzdt])
+
+
+        # time window
+    t_span = (0, 86)
+    #t = np.linspace(t_span[0],t_span[1],3600)
+
+    dt_desired = 1  # Desired time step in seconds
+    num_points = int((t_span[1] - t_span[0]) / dt_desired) + 1
+    t = np.linspace(t_span[0], t_span[1], num_points)
+    
+    # initial conditions
+    p0 = np.array([r0, 0.0, 90.0*(pi/180), 0.0 *(pi/180), 0.0*(pi /180),aS])
+
+    # Solve IVP
+    sol = solve_ivp(odes, t_span, p0, t_eval=t, events=[event_func_r,event_func_outer], method="RK23",
+                    dense_output=True) #DOP853 unstable.
+    
+    # Extract final values and end time
+    final_values = sol.y[:, -1]
+    end_time = sol.t[-1]
+
+  # Print or use final values for the next part of integration
+    print(f"For b = {b_value}:")
+    print("Final Values:", final_values)
+    print("End Time:", end_time)
+
+    # Check if any events occurred
+    if sol.status == 0 and len(sol.t_events[0]) > 0:
+        for i, event_time in enumerate(sol.t_events[0]):
+            event_idx = np.where(t >= event_time)[0][0]
+            t_event = sol.t_events[0][i]
+            r_event = sol.y_events[0][i, 0]
+            print(f"Event {i + 1} occurred at time {t_event:.2f} seconds. Radial distance: {r_event:.2f}")
+        else:
+            event_idx = len(t) - 1  # Plot until the end if no event occurred
+            print("Integration completed without reaching the specified event condition.")
+    
+    print("Integration Status:", sol.message)
+    print("Number of Events Detected:", len(sol.t_events[0]))
+
+    # Choose color for the current b value
+    color = colors[i]
+
+    # Plot on individual plots
+    ax_r.plot(sol.t, sol.y[0, :], linewidth='0.5', linestyle='solid', alpha=0.6, color=color,   label = f'{b_value}')
+    ax_x.plot(sol.t, sol.y[1, :], linewidth='0.5', linestyle='solid', alpha=0.6, color=color,   label = f'{b_value}')
+    ax_theta.plot(sol.t, sol.y[2, :]*(180/pi), linewidth='0.5', linestyle='solid', alpha=0.6, color=color, label = f'{b_value}')
+    ax_y.plot(sol.t, sol.y[3, :]*(180/pi),     linewidth='0.5', linestyle='solid', alpha=0.6, color=color, label = f'{b_value}')
+    ax_phi.plot(sol.t, sol.y[4, :]*(180/pi),   linewidth='0.5', linestyle='solid', alpha=0.6, color=color, label = f'{b_value}')
+    ax_z.plot(sol.t, sol.y[5, :] *(180/pi),    linewidth='0.5', linestyle='solid', alpha=0.6, color=color, label = f'{b_value}')
+       
+    # List of b_values to include in legends and annotations
+    b_values_to_annotate = [0.010e-9,0.015e-9,0.020e-9,0.025e-9,0.029e-9]
+
+    # Define annotation positions: beginning (0), quarter (len(sol.t)//4), half (len(sol.t)//2), and end (-1)
+    annotation_positions = {
+    0.01e-9: min(len(sol.t) - 1, len(sol.t)//1),
+    0.015e-9: min(len(sol.t) - 1, len(sol.t)//1),
+    0.02e-9: min(len(sol.t) - 1, len(sol.t)//4),
+    0.025e-9: min(len(sol.t) - 1, len(sol.t)//2),
+    #0.09e-9: min(len(sol.t) - 1, len(sol.t)//3),
+    0.029e-9: min(len(sol.t) - 1, len(sol.t)//1)}
+
+# Add text annotation for selected b_values
+    if b_value in b_values_to_annotate:
+        pos_index = annotation_positions[b_value]
+    
+    # Add text annotation for legend
+        ax_r.annotate(f'{b_value}', (sol.t[pos_index], sol.y[0, pos_index]), textcoords="offset points", xytext=(-5, 1), ha='left',va='baseline', fontsize=14, color=color)
+        ax_x.annotate(f'{b_value}', (sol.t[pos_index], sol.y[1, pos_index]), textcoords="offset points", xytext=(-5, 1), ha='right', va='baseline',fontsize=14, color=color)
+        ax_theta.annotate(f'{b_value}',(sol.t[pos_index],sol.y[2, pos_index]*(180/pi)), textcoords="offset points", xytext=(-5, 0),ha='right',va='top',rotation="vertical",fontsize=14, color=color)
+        ax_y.annotate(f'{b_value}', (sol.t[pos_index], sol.y[3, pos_index] * (180/pi)), textcoords="offset points", xytext=(-5, 0), ha='right',va='baseline',fontsize=14, color=color)
+        ax_phi.annotate(f'{b_value}', (sol.t[pos_index], sol.y[4, pos_index] * (180/pi)), textcoords="offset points", xytext=(-5, 0), ha='left',va='bottom',fontsize=14, color=color)
+        ax_z.annotate(f'{b_value}', (sol.t[pos_index], sol.y[5, pos_index] * (180/pi)), textcoords="offset points", xytext=(-5, 0), ha='right',va='baseline', fontsize=14, color=color)
+
+#Add legends to each plot
+
+#ax_r.legend()
+#ax_x.legend(loc='best',     bbox_to_anchor=(1.2, 1), borderaxespad=0., fontsize=10, ncol=3)
+
+#ax_theta.legend(loc='best', bbox_to_anchor=(0.9, 1.0), borderaxespad=0.,fontsize=10, ncol=6)
+#ax_y.legend()
+
+#ax_phi.legend()
+#ax_z.legend(loc='best',     bbox_to_anchor=(0.9, 1.0), borderaxespad=0.,fontsize=14,ncol=3)
+
+
+# Set common labels for each axis
+ax_r.set_xlabel('time (sec)',   fontsize=18)
+#x_tick_positions = [0, 86400, 86400*2, 86400*3, 86400*4, 86400*5, 86400*6]
+#x_tick_labels    = ["0","1", "2", "3", "4", "5", "6"]
+#ax_r.set_xticks(x_tick_positions)
+#ax_r.set_xticklabels(x_tick_labels)
+
+
+ax_x.set_xlabel('time (sec)',    fontsize=18)
+#x_tick_positions = [ 0, 86400, 86400*2, 86400*3, 86400*4, 86400*5, 86400*6]
+#x_tick_labels    = ["0","1", "2","3", "4", "5", "6"]#ax.set_xticks(x_tick_positions)
+#ax_x.set_xticks(x_tick_positions)
+#ax_x.set_xticklabels(x_tick_labels)
+
+ax_theta.set_xlabel('time (sec)',fontsize=18)
+#x_tick_positions = [ 0, 86400, 86400*2, 86400*3, 86400*4, 86400*5, 86400*6]
+#x_tick_labels    = ["0","1", "2", "3", "4", "5", "6"] #ax.set_xticks(x_tick_positions)
+#ax_theta.set_xticks(x_tick_positions)
+#ax_theta.set_xticklabels(x_tick_labels)
+
+ax_y.set_xlabel('time (sec)',    fontsize=18)
+#x_tick_positions = [0, 86400, 86400*2, 86400*3, 86400*4, 86400*5, 86400*6]
+#x_tick_labels    = ["0","1", "2", "3", "4", "5", "6"] #ax.set_xticks(x_tick_positions)
+#ax_y.set_xticks(x_tick_positions)
+#ax_y.set_xticklabels(x_tick_labels)
+
+ax_phi.set_xlabel('time (sec)',  fontsize=18)
+#x_tick_positions = [0, 86400, 86400*2, 86400*3, 86400*4, 86400*5, 86400*6]
+#x_tick_labels    = ["0","1", "2", "3", "4", "5", "6"] #ax.set_xticks(x_tick_positions)
+#ax_phi.set_xticks(x_tick_positions)
+#ax_phi.set_xticklabels(x_tick_labels)
+
+ax_z.set_xlabel('time (sec)',    fontsize=18)
+#x_tick_positions = [0, 86400, 86400*2, 86400*3, 86400*4, 86400*5, 86400*6]
+#x_tick_labels    = ["0","1", "2", "3", "4", "5", "6"] #ax.set_xticks(x_tick_positions)
+#ax_z.set_xticks(x_tick_positions)
+#ax_z.set_xticklabels(x_tick_labels)
+
+ax_r.set_ylabel('Radial Distance \n (1e7 m)',   fontsize=18)
+ax_x.set_ylabel('Radial Speed \n (m/s)',        fontsize=18)
+ax_theta.set_ylabel('Co-latitude \n (deg)',     fontsize=18)
+
+ax_y.set_ylabel('Co-latitude Speed \n (1e-18 deg/s)', fontsize=18)
+ax_phi.set_ylabel('Azimuthal Angle \n (deg)',   fontsize=18)
+ax_z.set_ylabel('Azimuthal Speed \n (deg/s)',   fontsize=18)
+
+ax_r.tick_params (axis='both', which='major',     labelsize=18)
+ax_x.tick_params (axis='both', which='major',     labelsize=18)
+ax_theta.tick_params (axis='both', which='major', labelsize=18)
+ax_y.tick_params (axis='both', which='major',     labelsize=18)
+ax_phi.tick_params (axis='both', which='major',   labelsize=18)
+ax_z.tick_params (axis='both', which='major',     labelsize=18)
+
+# Adjust layout to prevent overlap
+plt.tight_layout()
+
+# Show the plots
+plt.show()
